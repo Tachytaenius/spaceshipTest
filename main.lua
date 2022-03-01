@@ -42,13 +42,13 @@ local function updateSpaceDust()
 	-- remove sectors outside of a cube near player and empty entries
 	for x, sectorsX in pairs(spaceDustSectors) do
 	if x ~= "num" then -- if x == "num" then continue end >:(
-		if math.abs(x - math.floor(camera.position.x / consts.spaceDustSectorSize)) <= consts.maxDistanceForExistingSpaceDustSectors then
+		if math.abs(x - math.floor(camera.position.x / consts.spaceDustSectorSize)) <= consts.distanceToKeepSpaceDustSectors then
 			for y, sectorsXY in pairs(sectorsX) do
 			if y ~= "num" then -- if y == "num" then continue end >:(
-				if math.abs(y - math.floor(camera.position.y / consts.spaceDustSectorSize)) <= consts.maxDistanceForExistingSpaceDustSectors then
+				if math.abs(y - math.floor(camera.position.y / consts.spaceDustSectorSize)) <= consts.distanceToKeepSpaceDustSectors then
 					for z, sector in pairs(sectorsXY) do
 					if z ~= "num" then -- if z == "num" then continue end >:(
-						if math.abs(z - math.floor(camera.position.z / consts.spaceDustSectorSize)) <= consts.maxDistanceForExistingSpaceDustSectors then
+						if math.abs(z - math.floor(camera.position.z / consts.spaceDustSectorSize)) <= consts.distanceToKeepSpaceDustSectors then
 							--
 						else
 							sectorsXY[z] = nil
@@ -69,11 +69,11 @@ local function updateSpaceDust()
 	end
 	end
 	-- ensure sectors present in a cube around player
-	for x = -consts.distanceToCreateSpaceDustSectors, consts.distanceToCreateSpaceDustSectors do
+	for x = -consts.distanceToKeepSpaceDustSectors, consts.distanceToKeepSpaceDustSectors do
 		x = x + math.floor(camera.position.x / consts.spaceDustSectorSize)
-		for y = -consts.distanceToCreateSpaceDustSectors, consts.distanceToCreateSpaceDustSectors do
+		for y = -consts.distanceToKeepSpaceDustSectors, consts.distanceToKeepSpaceDustSectors do
 			y = y + math.floor(camera.position.y / consts.spaceDustSectorSize)
-			for z = -consts.distanceToCreateSpaceDustSectors, consts.distanceToCreateSpaceDustSectors do
+			for z = -consts.distanceToKeepSpaceDustSectors, consts.distanceToKeepSpaceDustSectors do
 				z = z + math.floor(camera.position.z / consts.spaceDustSectorSize)
 				local sector = get(get(get(spaceDustSectors, x), y), z)
 				if not sector then
@@ -148,6 +148,8 @@ local function drawParticle(particle, projectionMatrix, cameraMatrix)
 	else
 		particle.drawPos = projectionMatrix * cameraMatrix * particle.position
 	end
+	particleShader:send("startDist", #(particle.position-player.position))
+	particleShader:send("endDist", #((particle.previousPosition or particle.position)-player.position))
 	particleShader:send("eyeSpace", consts.useEyeSpaceForParticlePositions)
 	particle.prevDrawPos = particle.prevDrawPos or particle.drawPos
 	particleShader:send("drawPos", {vec3.components(particle.drawPos)})
@@ -168,6 +170,7 @@ function love.draw()
 			if entity.particle then
 				love.graphics.setShader(particleShader)
 				love.graphics.setWireframe(true)
+				particleShader:send("useFalloff", false)
 				drawParticle(particle, projectionMatrix, cameraMatrix)
 			else
 				love.graphics.setShader(meshShader)
@@ -191,6 +194,9 @@ function love.draw()
 				for i = 1, #sector do
 					-- n = n + 1
 					local particle = sector[i]
+					particleShader:send("useFalloff", true)
+					particleShader:send("renderDistance", consts.distanceToKeepSpaceDustSectors * consts.spaceDustSectorSize)
+					particleShader:send("fogRange", consts.spaceDustFogRange)
 					drawParticle(particle, projectionMatrix, cameraMatrix)
 				end
 			end

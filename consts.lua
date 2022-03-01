@@ -1,11 +1,12 @@
 local consts = {}
 
 consts.spaceDustSectorSize = 10
-consts.spaceDustPerSector = 2
-consts.maxDistanceForExistingSpaceDustSectors = 2 -- well, this is actually compared along only one axis. measured in sectors
-consts.distanceToCreateSpaceDustSectors = 2 -- '', also used for space dust render distance
+consts.spaceDustPerSector = 3
+consts.distanceToKeepSpaceDustSectors = 2 -- well, this is actually compared along only one axis. measured in sectors. also used for space dust render distance
 
 consts.useEyeSpaceForParticlePositions = false -- else use clip space
+
+consts.spaceDustFogRange = 0.25 -- how much towards the end of the way to renderDistance (distanceToKeepSpaceDustSectors * spaceDustSectorSize) is fog falloff for space dust
 
 consts.vertexFormat = {
 	{"VertexPosition", "float", 3},
