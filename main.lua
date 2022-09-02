@@ -19,6 +19,7 @@ local particleShader = love.graphics.newShader("particleShader.glsl")
 local function get(t, k) if t then return t[k] end end
 
 local entities, spaceDustSectors
+local entitiesToAdd, entitiesToRemove
 local player, camera
 
 function love.load()
@@ -27,14 +28,17 @@ function love.load()
 	
 	entities = list()
 	player = {
-		previousPosition = vec3(), position = vec3(), velocity = vec3(), angularVelocity = vec3(), orientation = quat(), angularSpeed = math.tau, speed = 20, mesh = spaceship, colour = {1, 1, 1}
+		previousPosition = vec3(), position = vec3(), velocity = vec3(), angularVelocity = vec3(), orientation = quat(0, 1, 0, 0), angularSpeed = math.tau / 10, speed = 2, mesh = spaceship, colour = {1, 1, 1}, gun = {cooldownTimer = 0, cooldown = 0.001, bulletSpeed = 1000, bulletColour = {1, 1, 0}}
 	}
 	entities:add(player)
-	camera = {
+	camera = player
+	local second = {
 		previousPosition = vec3(), position = vec3(0, 0, -5), velocity = vec3(0, 0, 0), angularVelocity = vec3(), orientation = quat(), angularSpeed = math.tau, speed = 20, mesh = spaceship, colour = {0.5, 0.5, 0.5}
 	}
-	entities:add(camera)
-	player = camera
+	entities:add(second)
+	if false then
+		camera = second
+	end
 	spaceDustSectors = {num = 0}
 end
 
@@ -109,12 +113,68 @@ local function updateSpaceDust()
 	end
 end
 
+-- local function takeFromDtWithTimer(dt, timer)
+-- 	local timer2 = math.max(timer - dt, 0)
+-- 	local dt2 = dt - (timer - timer2)
+-- 	assert(timer2 <= timer)
+-- 	assert(dt2 <= dt)
+-- 	return dt2, timer2
+-- end
+
+local function progressTimeWithTimer(curTime, dt, timer) -- modified from takeFromDtWithTimer
+	assert(curTime <= dt)
+	local usableTime = dt - curTime
+	local timer2 = math.max(timer - usableTime, 0) -- use usableTime to progress/increase timer, stopping at 0
+	local usableTime2 = usableTime - (timer - timer2) -- get new used usable time using change in timer
+	local curTime2 = curTime + (usableTime - usableTime2) -- progress current time by how much usable time was used
+	assert(timer2 <= timer)
+	assert(usableTime2 <= usableTime)
+	assert(curTime2 >= curTime)
+	assert(curTime2 <= dt)
+	return curTime2, timer2
+end
+
+local function tickGun(entity, gun, dt)
+	local curTime = 0
+	while curTime < dt do
+		curTime, gun.cooldownTimer = progressTimeWithTimer(curTime, dt, gun.cooldownTimer)
+		if gun.cooldownTimer == 0 then
+			local shouldShoot = entity == player and love.keyboard.isDown("space")
+			if shouldShoot then
+				-- shooting is done here
+				local lerp = curTime / dt
+				assert(lerp >= 0 and lerp <= 1, lerp)
+				local shootOrientation = quat.slerp(entity.previousOrientation, entity.orientation, lerp)
+				gun.cooldownTimer = gun.cooldown
+				local direction = vec3.rotate(vec3(0, 0, 1), shootOrientation)
+				local velocity = player.velocity + direction * gun.bulletSpeed
+				local bullet = {
+					previousPosition = vec3.clone(player.position),
+					position = vec3.clone(player.position) + velocity * (dt - curTime),
+					velocity = velocity,
+					colour = {unpack(gun.bulletColour)},
+					-- colour = {love.math.random(), love.math.random(), love.math.random()},
+					particle = true
+				}
+				entitiesToAdd[#entitiesToAdd+1] = bullet
+			else
+				break
+			end
+		end
+	end
+end
+
 function love.update(dt)
+	entitiesToAdd, entitiesToRemove = {}, {}
 	for entity in entities:elements() do
 		entity.previousPosition = entity.position
 		entity.position = entity.position + entity.velocity * dt
 		if entity.orientation then
+			entity.previousOrientation = entity.orientation
 			entity.orientation = quat.normalize(entity.orientation * quat.fromAxisAngle(entity.angularVelocity * dt))
+		end
+		if entity.gun then
+			tickGun(entity, entity.gun, dt)
 		end
 	end
 	if player then
@@ -137,6 +197,12 @@ function love.update(dt)
 		player.angularVelocity = player.angularVelocity + rotate * dt
 	end
 	updateSpaceDust()
+	for _, entity in ipairs(entitiesToAdd) do
+		entities:add(entity)
+	end
+	for _, entity in ipairs(entitiesToRemove) do
+		entities:remove(entity)
+	end
 end
 
 local function drawParticle(particle, projectionMatrix, cameraMatrix)
@@ -171,7 +237,7 @@ function love.draw()
 				love.graphics.setShader(particleShader)
 				love.graphics.setWireframe(true)
 				particleShader:send("useFalloff", false)
-				drawParticle(particle, projectionMatrix, cameraMatrix)
+				drawParticle(entity, projectionMatrix, cameraMatrix)
 			else
 				love.graphics.setShader(meshShader)
 				love.graphics.setWireframe(false)

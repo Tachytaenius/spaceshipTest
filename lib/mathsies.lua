@@ -1,8 +1,11 @@
 -- Mathsies provides deterministic (if your machine is compliant with IEEE-754) versions of generic mathematical functions for LuaJIT, as well as quaternions, 2 and 3-dimensional vectors and 4x4 matrices.
 -- By Tachytaenius.
--- Version 3
+-- Version 4
 
 -- TODO: Tests?
+-- TODO: Revise function order
+-- TODO: Check for unwanted trailing whitespaces or empty lines that should have indents
+-- TODO: Matrices: elements or components?
 
 local ffi = require("ffi")
 
@@ -297,6 +300,10 @@ do -- vec2
 		return v.x, v.y
 	end
 	
+	local function clone(v)
+		return rawnew(v.x, v.y)
+	end
+	
 	ffi.metatype("vec2", {
 		__add = function(a, b)
 			if type(a) == "number" then
@@ -369,7 +376,8 @@ do -- vec2
 		refract = refract,
 		rotate = rotate,
 		detRotate = detRotate,
-		components = components
+		components = components,
+		clone = clone
 	}, {
 		__call = function(_, x, y)
 			return new(x, y)
@@ -464,6 +472,10 @@ do -- vec3
 		return v.x, v.y, v.z
 	end
 	
+	local function clone(v)
+		return rawnew(v.x, v.y, v.z)
+	end
+	
 	ffi.metatype("vec3", {
 		__add = function(a, b)
 			if type(a) == "number" then
@@ -538,7 +550,8 @@ do -- vec3
 		rotate = rotate,
 		fromAngles = fromAngles,
 		detFromAngles = detFromAngles,
-		components = components
+		components = components,
+		clone = clone
 	}, {
 		__call = function(_, x, y, z)
 			return new(x, y, z)
@@ -552,9 +565,9 @@ do -- quat
 			float x, y, z, w;
 		} quat;
 	]=])
-
+	
 	local ffi_istype = ffi.istype
-
+	
 	local rawnew = ffi.typeof("quat")
 	local function new(x, y, z, w)
 		if x and y and z then
@@ -567,28 +580,28 @@ do -- quat
 			return rawnew(0, 0, 0, 1)
 		end
 	end
-
+	
 	local sqrt, sin, cos, acos = math.sqrt, math.sin, math.cos, math.acos
 	local detsin, detcos, detacos = detmath.sin, detmath.cos, detmath.acos
-
+	
 	local function length(q)
 		local x, y, z, w = q.x, q.y, q.z, q.w
 		return sqrt(x * x + y * y + z * z + w * w)
 	end
-
+	
 	local function normalise(q)
 		local len = #q
 		return rawnew(q.x / len, q.y / len, q.z / len, q.w / len)
 	end
-
+	
 	local function inverse(q)
 		return rawnew(-q.x, -q.y, -q.z, q.w)
 	end
-
+	
 	local function dot(a, b)
 		return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
 	end
-
+	
 	local function slerp(a, b, i)
 		if a == b then return a end
 		
@@ -598,7 +611,7 @@ do -- quat
 		
 		return a * (sin((1 - i) * halfTheta) / sinHalfTheta) + b * (sin(i * halfTheta) / sinHalfTheta)
 	end
-
+	
 	local function detSlerp(a, b, i)
 		if a == b then return a end
 		
@@ -608,7 +621,7 @@ do -- quat
 		
 		return a * (detsin((1 - i) * halfTheta) / sinHalfTheta) + b * (detsin(i * halfTheta) / sinHalfTheta)
 	end
-
+	
 	local function fromAxisAngle(v)
 		local angle = #v
 		if angle == 0 then return rawnew(0, 0, 0, 1) end
@@ -616,7 +629,7 @@ do -- quat
 		local s, c = sin(angle / 2), cos(angle / 2)
 		return normalise(new(axis.x * s, axis.y * s, axis.z * s, c))
 	end
-
+	
 	local function detFromAxisAngle(v)
 		local angle = #v
 		if angle == 0 then return rawnew(0, 0, 0, 1) end
@@ -624,9 +637,13 @@ do -- quat
 		local s, c = detsin(angle / 2), detcos(angle / 2)
 		return normalise(new(axis.x * s, axis.y * s, axis.z * s, c))
 	end
-
+	
 	local function components(q)
 		return q.x, q.y, q.z, q.w
+	end
+	
+	local function clone(q)
+		return rawnew(q.x, q.y, q.z, q.w)
 	end
 	
 	ffi.metatype("quat", {
@@ -658,7 +675,7 @@ do -- quat
 			return string.format("quat(%f, %f, %f, %f)", a.x, a.y, a.z, a.w)
 		end
 	})
-
+	
 	quat = setmetatable({
 		new = new,
 		length = length,
@@ -670,7 +687,8 @@ do -- quat
 		detSlerp = detSlerp,
 		fromAxisAngle = fromAxisAngle,
 		detFromAxisAngle = detFromAxisAngle,
-		components = components
+		components = components,
+		clone = clone
 	}, {
 		__call = function(_, x, y, z, w)
 			return new(x, y, z, w)
@@ -787,6 +805,10 @@ do -- mat4
 		return m._00,m._01,m._02,m._03, m._10,m._11,m._12,m._13, m._20,m._21,m._22,m._23, m._30,m._31,m._32,m._33
 	end
 	
+	local function clone(m)
+		return rawnew(m._00,m._01,m._02,m._03, m._10,m._11,m._12,m._13, m._20,m._21,m._22,m._23, m._30,m._31,m._32,m._33)
+	end
+	
 	local function inverse(m)
 		return rawnew(
 			 m._11 * m._22 * m._33 - m._11 * m._23 * m._32 - m._21 * m._12 * m._33 + m._21 * m._13 * m._32 + m._31 * m._12 * m._23 - m._31 * m._13 * m._22,
@@ -875,6 +897,7 @@ do -- mat4
 		transform = transform,
 		camera = camera,
 		elements = elements,
+		clone = clone,
 		inverse = inverse,
 		transpose = transpose
 	}, {
